@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'finances.apps.FinancesConfig',
+    'taggit'
 ]
 
 MIDDLEWARE = [

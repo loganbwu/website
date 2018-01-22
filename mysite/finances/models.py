@@ -1,8 +1,11 @@
 from django.db import models
+from django.forms import ModelForm
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
 from django_pandas.io import read_frame
 from django_pandas.managers import DataFrameManager
+from taggit.managers import TaggableManager
+
 
 # Create your models here.
 class Category(models.Model):
@@ -10,6 +13,7 @@ class Category(models.Model):
     Category of account or transaction
     """
     name = models.CharField(max_length=255, help_text="Category of account or transaction")
+    tags = TaggableManager()
 
     class Meta:
         ordering = ["name"]
@@ -25,9 +29,10 @@ class Account(models.Model):
     Belongs to a single user
     """
     name = models.CharField(max_length=255, help_text="Enter an account name (e.g. KiwiBank Everyday)")
-    description = models.CharField(max_length=255, help_text="Enter a description (e.g. Savings)")
-    owner = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
-    current_balance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    description = models.CharField(max_length=255, help_text="Enter a description (e.g. Savings)", blank=True, null=True)
+    owner = models.ForeignKey(User, on_delete=models.SET_NULL, blank=True, null=True)
+    current_balance = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    transaction_file = models.FileField(blank=True, null=True)
 
     class Meta:
         ordering = ["name"]
@@ -44,6 +49,9 @@ class Account(models.Model):
                 values='amount')
         return ts
 
+    def save(self, *args, **kwargs):
+        super(Account, self).save(*args, **kwargs)
+
 
 class Transaction(models.Model):
     """
@@ -56,6 +64,7 @@ class Transaction(models.Model):
     dr = models.ForeignKey(Account, related_name="dr", on_delete=models.SET_NULL, null=True)
     cr = models.ForeignKey(Account, related_name="cr", on_delete=models.SET_NULL, null=True)
     category = models.ForeignKey(Category, related_name="category", on_delete=models.SET_NULL, null=True)
+    tags = TaggableManager()
 
     class Meta:
         ordering = ["timestamp"]
