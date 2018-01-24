@@ -9,18 +9,18 @@ admin.site.register(Transaction)
 
 class TransactionInlineDr(admin.TabularInline):
     model = Transaction
-    max_num = 1
     fk_name = "dr"
     readonly_fields = ('description', 'timestamp', 'amount', 'dr', 'cr', 'category', 'tags')
+    can_delete = False
 
 class TransactionInlineCr(admin.TabularInline):
     model = Transaction
-    max_num = 1
     fk_name = "cr"
     readonly_fields = ('description', 'timestamp', 'amount', 'dr', 'cr', 'category', 'tags')
+    can_delete = False
 
 @admin.register(Account)
 class AccountAdmin(admin.ModelAdmin):
     list_display = ('name', 'description', 'owner')
     exclude = ('current_balance',)
-    inlines = [TransactionInlineDr, TransactionInlineCr]
+    # inlines = [TransactionInlineDr, TransactionInlineCr]
