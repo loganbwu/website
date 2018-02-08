@@ -12,7 +12,9 @@ from dateutil.parser import parse
 from datetime import datetime, timedelta
 from django.db.models import Q
 from django.utils import timezone
-
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
+import os
 
 # Create your models here.
 class Category(models.Model):
@@ -60,9 +62,7 @@ class Account(models.Model):
         super(Account, self).save(*args, **kwargs)
         print(self.transaction_file)
         if self.transaction_file:
-            process_account_csv(self.transaction_file.url)
-            print("Deleting file...")
-            # self.FieldFile.delete()
+            process_account_csv(self.transaction_file.url, self.name)
 
 
 class Transaction(models.Model):
@@ -83,14 +83,14 @@ class Transaction(models.Model):
         ordering = ["timestamp"]
 
     def __str__(self):
-        trans_str = "Transaction %s: " % self.timestamp.strftime("%B %d, %Y")
+        local_timestamp = timezone.localtime(self.timestamp)
+        trans_str = "%s: " % local_timestamp.strftime("%B %d, %Y")
         if self.cr:
-            trans_str += str(self.cr) + " -> "
-        trans_str += "$%.2f" % self.amount
+            trans_str += str(self.cr) + " \u2192 "
+        trans_str += "$%.2f" % abs(self.amount)
         if self.dr:
-            trans_str += " -> " + str(self.dr)
+            trans_str += " \u2192 " + str(self.dr)
         return trans_str
-
 
 class Balance(models.Model):
     """
@@ -103,7 +103,7 @@ class Balance(models.Model):
 
     objects = DataFrameManager()
 
-def process_account_csv(url):
+def process_account_csv(url, name):
     print("Processing", url)
     print(url)
     with open(url) as file:
@@ -112,16 +112,16 @@ def process_account_csv(url):
         if not csvlist[0][0] or any(csvlist[0][1:]):
             raise ValidationError(_("Uploaded CSV was not in 'KiwiBank Basic' format."))
         else:
-            acc_number = csvlist[0][0]
-            account = Account.objects.get(name=acc_number)
-            print("Deleting old transactions...")
-            print("No. transactions: ", Transaction.objects.all().count())
+            #acc_number = csvlist[0][0]  # now ignores account number
+            account = Account.objects.get(name=name)
+            # print("Deleting old transactions...")
+            # print("No. transactions: ", Transaction.objects.all().count())
             # Transaction.objects.filter(Q(cr=account) or Q(dr=account)).delete()
-            Transaction.objects.all().delete()
-            print("No. transactions: ", Transaction.objects.all().count())
-            count = 0
+            # Transaction.objects.all().delete()
+            # print("No. transactions: ", Transaction.objects.all().count())
             for row in csvlist[1:]:
                 timestamp = timezone.make_aware(parse(row[0]))
+                print(row[0], ' -> ', timestamp)
                 desc = row[1].split(";")[0].strip()
                 if "-" in desc and ":" in desc:
                     desc, clocktime = desc.rsplit("-", 1)
@@ -138,3 +138,21 @@ def process_account_csv(url):
                     cr = account
                     dr = None
                 t = Transaction.objects.create(dr=dr, cr=cr, amount=amount, description=desc, timestamp=timestamp)
+
+@receiver(post_delete, sender=Account)
+def cascade_transactions_delete(sender, instance, *args, **kwargs):
+    """
+    Check all transactions and delete any orphans
+    """
+    for t in Transaction.objects.all():
+        if not t.dr and not t.cr:
+            t.delete()
+
+@receiver(post_delete, sender=Account)
+def delete_csv(sender, instance, *args, **kwargs):
+    """
+    Delete CSV file associated with an account
+    """
+    if instance.transaction_file:
+        if os.path.isfile(instance.transaction_file.path):
+            os.remove(instance.transaction_file.path)
