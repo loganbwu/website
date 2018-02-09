@@ -8,7 +8,7 @@
 
       {% for account in account_list %}
       <li>
-        <a href="{{ account.get_absolute_url }}">{{ account.name }}</a> ({{account.desc}})
+        <a href="{{ account.get_absolute_url }}">{{ account.name }}</a> {% if account.desc %}({{account.desc}}){% endif %}
       </li>
       {% endfor %}
 
